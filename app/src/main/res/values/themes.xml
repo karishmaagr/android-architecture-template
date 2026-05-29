@@ -1,0 +1,4 @@
+<resources>
+    <!-- Base theme required by the Manifest; actual theming is handled by Compose AppTheme -->
+    <style name="Theme.ArchitectureTemplate" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
