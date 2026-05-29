@@ -43,6 +43,107 @@ app/
 
 ---
 
+## Module Dependency Graph
+
+```mermaid
+graph TD
+    subgraph app["🟥 app"]
+        APP(app)
+    end
+
+    subgraph services["🟨 services"]
+        SYNC(services:sync)
+    end
+
+    subgraph auth["feature:auth"]
+        AU(":ui")
+        AD(":data")
+        ADO(":domain")
+    end
+
+    subgraph home["feature:home"]
+        HU(":ui")
+        HD(":data")
+        HDO(":domain")
+    end
+
+    subgraph profile["feature:profile"]
+        PU(":ui")
+        PD(":data")
+        PDO(":domain")
+    end
+
+    subgraph settings["feature:settings"]
+        SU(":ui")
+        SD(":data")
+        SDO(":domain")
+    end
+
+    subgraph core["🔵 core"]
+        CC(core:common)
+        CDO(core:domain)
+        CDA(core:data)
+        CN(core:network)
+        CDB(core:database)
+        CUI(core:ui)
+    end
+
+    %% app → feature ui + data (composition root)
+    APP --> AU & AD
+    APP --> HU & HD
+    APP --> PU & PD
+    APP --> SU & SD
+    APP --> SYNC
+
+    %% ui → domain only  (⛔ no path to data)
+    AU --> ADO
+    HU --> HDO
+    PU --> PDO
+    SU --> SDO
+
+    %% data → domain
+    AD --> ADO
+    HD --> HDO
+    PD --> PDO
+    SD --> SDO
+
+    %% domain → core
+    ADO & HDO & PDO & SDO --> CC & CDO
+
+    %% data → core
+    AD & HD & PD --> CDA & CN
+    SD --> CDA
+    HD --> CDB
+
+    %% ui → core:ui
+    AU & HU & PU & SU --> CUI
+
+    %% services → core only
+    SYNC --> CC & CDA & CDO & CN
+
+    %% core internal deps
+    CDO & CDA & CN & CDB & CUI --> CC
+
+    %% styles
+    classDef appStyle   fill:#c0392b,color:#fff,stroke:none
+    classDef uiStyle    fill:#8e44ad,color:#fff,stroke:none
+    classDef dataStyle  fill:#e67e22,color:#fff,stroke:none
+    classDef domStyle   fill:#27ae60,color:#fff,stroke:none
+    classDef coreStyle  fill:#2980b9,color:#fff,stroke:none
+    classDef syncStyle  fill:#f1c40f,color:#333,stroke:none
+
+    class APP appStyle
+    class AU,HU,PU,SU uiStyle
+    class AD,HD,PD,SD dataStyle
+    class ADO,HDO,PDO,SDO domStyle
+    class CC,CDO,CDA,CN,CDB,CUI coreStyle
+    class SYNC syncStyle
+```
+
+**Colour key:** 🔴 app &nbsp;|&nbsp; 🟣 feature:ui &nbsp;|&nbsp; 🟠 feature:data &nbsp;|&nbsp; 🟢 feature:domain &nbsp;|&nbsp; 🔵 core &nbsp;|&nbsp; 🟡 services
+
+---
+
 ## Dependency Rules (enforced at build level)
 
 ```
