@@ -45,100 +45,7 @@ app/
 
 ## Module Dependency Graph
 
-```mermaid
-graph TD
-    subgraph app["🟥 app"]
-        APP(app)
-    end
-
-    subgraph services["🟨 services"]
-        SYNC(services:sync)
-    end
-
-    subgraph auth["feature:auth"]
-        AU(":ui")
-        AD(":data")
-        ADO(":domain")
-    end
-
-    subgraph home["feature:home"]
-        HU(":ui")
-        HD(":data")
-        HDO(":domain")
-    end
-
-    subgraph profile["feature:profile"]
-        PU(":ui")
-        PD(":data")
-        PDO(":domain")
-    end
-
-    subgraph settings["feature:settings"]
-        SU(":ui")
-        SD(":data")
-        SDO(":domain")
-    end
-
-    subgraph core["🔵 core"]
-        CC(core:common)
-        CDO(core:domain)
-        CDA(core:data)
-        CN(core:network)
-        CDB(core:database)
-        CUI(core:ui)
-    end
-
-    %% app → feature ui + data (composition root)
-    APP --> AU & AD
-    APP --> HU & HD
-    APP --> PU & PD
-    APP --> SU & SD
-    APP --> SYNC
-
-    %% ui → domain only  (⛔ no path to data)
-    AU --> ADO
-    HU --> HDO
-    PU --> PDO
-    SU --> SDO
-
-    %% data → domain
-    AD --> ADO
-    HD --> HDO
-    PD --> PDO
-    SD --> SDO
-
-    %% domain → core
-    ADO & HDO & PDO & SDO --> CC & CDO
-
-    %% data → core
-    AD & HD & PD --> CDA & CN
-    SD --> CDA
-    HD --> CDB
-
-    %% ui → core:ui
-    AU & HU & PU & SU --> CUI
-
-    %% services → core only
-    SYNC --> CC & CDA & CDO & CN
-
-    %% core internal deps
-    CDO & CDA & CN & CDB & CUI --> CC
-
-    %% styles
-    classDef appStyle   fill:#c0392b,color:#fff,stroke:none
-    classDef uiStyle    fill:#8e44ad,color:#fff,stroke:none
-    classDef dataStyle  fill:#e67e22,color:#fff,stroke:none
-    classDef domStyle   fill:#27ae60,color:#fff,stroke:none
-    classDef coreStyle  fill:#2980b9,color:#fff,stroke:none
-    classDef syncStyle  fill:#f1c40f,color:#333,stroke:none
-
-    class APP appStyle
-    class AU,HU,PU,SU uiStyle
-    class AD,HD,PD,SD dataStyle
-    class ADO,HDO,PDO,SDO domStyle
-    class CC,CDO,CDA,CN,CDB,CUI coreStyle
-    class SYNC syncStyle
-```
+![Module Dependency Graph](diagrams/module_graph.svg)
 
 **Colour key:** 🔴 app &nbsp;|&nbsp; 🟣 feature:ui &nbsp;|&nbsp; 🟠 feature:data &nbsp;|&nbsp; 🟢 feature:domain &nbsp;|&nbsp; 🔵 core &nbsp;|&nbsp; 🟡 services
 
@@ -197,66 +104,7 @@ app ──► feature:home:ui   (screens, ViewModels)
 
 ## Clean Architecture Layers
 
-```mermaid
-flowchart TB
-    subgraph ui_layer["🟣  Presentation Layer  ·  feature:X:ui"]
-        SCREEN["Composable Screen"]
-        VM["ViewModel\nextends MviViewModel"]
-        CONTRACT["State  ·  Intent  ·  Effect"]
-        SCREEN <-->|"collectAsState\nonIntent()"| VM
-        VM --- CONTRACT
-    end
-
-    subgraph domain_layer["🟢  Domain Layer  ·  feature:X:domain  ·  pure Kotlin — zero framework deps"]
-        USECASE["UseCase\nbusiness logic lives here"]
-        REPO_IF["Repository\ninterface — no impl detail"]
-        MODEL["Domain Model\ndata class"]
-        USECASE -->|"calls"| REPO_IF
-        USECASE -->|"returns"| MODEL
-    end
-
-    subgraph data_layer["🟠  Data Layer  ·  feature:X:data"]
-        REPO_IMPL["RepositoryImpl"]
-        REMOTE["Remote DataSource\nRetrofit / API"]
-        LOCAL["Local DataSource\nRoom / DataStore"]
-        DTO["DTO  ·  Entity"]
-        MAPPER["Mapper\ntoDomain()"]
-        REPO_IMPL --> REMOTE & LOCAL
-        REMOTE & LOCAL --> DTO
-        DTO --> MAPPER
-    end
-
-    subgraph core_layer["🔵  Core Layer  ·  shared infrastructure"]
-        CORE["core:network  ·  core:database\ncore:data  ·  core:domain  ·  core:ui"]
-    end
-
-    %% vertical data flow
-    VM -->|"invokes"| USECASE
-    MODEL -->|"drives recomposition"| SCREEN
-    MAPPER -->|"produces"| MODEL
-
-    %% dependency inversion — interface in domain, impl in data
-    REPO_IMPL -. "implements\n(Dependency Inversion)" .-> REPO_IF
-
-    %% data layer uses core infra
-    REMOTE -->|"uses"| CORE
-    LOCAL  -->|"uses"| CORE
-
-    %% dependency direction rule label
-    DIRECTION(["⬆️  Dependencies point inward\nDomain knows nothing about Data or UI"])
-
-    classDef uiStyle     fill:#8e44ad,color:#fff,stroke:none
-    classDef domStyle    fill:#27ae60,color:#fff,stroke:none
-    classDef dataStyle   fill:#e67e22,color:#fff,stroke:none
-    classDef coreStyle   fill:#2980b9,color:#fff,stroke:none
-    classDef ruleStyle   fill:#ecf0f1,color:#333,stroke:#bdc3c7
-
-    class SCREEN,VM,CONTRACT uiStyle
-    class USECASE,REPO_IF,MODEL domStyle
-    class REPO_IMPL,REMOTE,LOCAL,DTO,MAPPER dataStyle
-    class CORE coreStyle
-    class DIRECTION ruleStyle
-```
+![Clean Architecture Layers](diagrams/clean_architecture.svg)
 
 | Layer | Module | Allowed dependencies |
 |-------|--------|----------------------|
@@ -271,51 +119,7 @@ The **Dependency Inversion Principle** is the key mechanism: `RepositoryImpl` (d
 
 ## MVI Pattern
 
-```mermaid
-flowchart TD
-    subgraph screen["🖥️  Composable Screen"]
-        UI["Render State\n─────────────\ncollectAsState()"]
-        ACTION["User Action\n─────────────\nbutton click, scroll, input"]
-    end
-
-    subgraph vm["⚙️  MviViewModel"]
-        HANDLE["handleIntent(intent)"]
-        SET["setState { copy(…) }\n─────────────\nimmutable update"]
-        EFFECT["sendEffect(effect)\n─────────────\none-shot event"]
-    end
-
-    subgraph domain["📦  Domain Layer"]
-        UC["UseCase\n─────────────\nbusiness logic"]
-        REPO["Repository Interface\n─────────────\nno implementation detail"]
-    end
-
-    subgraph out["📤  Outputs"]
-        STATE["UiState\n─────────────\nStateFlow — always a value\nsurvives recomposition"]
-        FX["UiEffect\n─────────────\nChannel — consumed once\nnavigation · snackbar · dialog"]
-    end
-
-    ACTION -->|"onIntent(Intent)"| HANDLE
-    HANDLE -->|"suspend call"| UC
-    UC -->|"via interface"| REPO
-    UC -->|"Result&lt;T&gt;"| HANDLE
-    HANDLE -->|"success / loading"| SET
-    HANDLE -->|"navigate / notify"| EFFECT
-    SET --> STATE
-    EFFECT --> FX
-    STATE -->|"recompose"| UI
-    FX -->|"LaunchedEffect"| UI
-    UI --> ACTION
-
-    classDef screenStyle fill:#8e44ad,color:#fff,stroke:none
-    classDef vmStyle     fill:#c0392b,color:#fff,stroke:none
-    classDef domStyle    fill:#27ae60,color:#fff,stroke:none
-    classDef outStyle    fill:#2980b9,color:#fff,stroke:none
-
-    class UI,ACTION screenStyle
-    class HANDLE,SET,EFFECT vmStyle
-    class UC,REPO domStyle
-    class STATE,FX outStyle
-```
+![MVI Pattern](diagrams/mvi_pattern.svg)
 
 **State** is always present — the screen never has a null state to guard against.  
 **Effect** is fire-and-forget — navigation and snackbars fire exactly once and are never stored.  

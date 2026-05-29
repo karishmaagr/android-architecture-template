@@ -1,0 +1,35 @@
+digraph MVI {
+    rankdir=LR
+    bgcolor=white
+    pad=0.5
+    nodesep=0.7
+    ranksep=1.0
+
+    node [fontname="Helvetica Neue,Helvetica,Arial", fontsize=12, penwidth=0, margin="0.22,0.14", style="filled,rounded"]
+    edge [fontname="Helvetica Neue,Helvetica,Arial", fontsize=10, penwidth=1.2, color="#555555"]
+
+    // ── Nodes ─────────────────────────────────────────────
+    SCREEN [label="Composable\nScreen", fillcolor="#8e44ad", fontcolor=white, shape=box]
+    INTENT [label="Intent", fillcolor="#8e44ad", fontcolor=white, shape=box]
+    VM     [label="ViewModel\nhandleIntent()", fillcolor="#c0392b", fontcolor=white, shape=box]
+    USECASE [label="UseCase", fillcolor="#27ae60", fontcolor=white, shape=box]
+    REPO   [label="Repository\n(interface)", fillcolor="#27ae60", fontcolor=white, shape=box]
+    STATE  [label="UiState\n(StateFlow)", fillcolor="#2980b9", fontcolor=white, shape=box]
+    EFFECT [label="UiEffect\n(Channel)", fillcolor="#2980b9", fontcolor=white, shape=box]
+
+    // ── Flow ──────────────────────────────────────────────
+    SCREEN -> INTENT [label="  user action  "]
+    INTENT -> VM     [label="  onIntent()  "]
+    VM -> USECASE    [label="  invoke  "]
+    USECASE -> REPO  [label="  calls  "]
+    REPO -> USECASE  [label="  Result<T>  ", style=dashed]
+    USECASE -> VM    [label="  Result<T>  ", style=dashed]
+    VM -> STATE      [label="  setState{}  "]
+    VM -> EFFECT     [label="  sendEffect()  "]
+    STATE -> SCREEN  [label="  collectAsState()  "]
+    EFFECT -> SCREEN [label="  LaunchedEffect  ", style=dashed]
+
+    // ── Rank ──────────────────────────────────────────────
+    { rank=same; STATE; EFFECT }
+    { rank=same; USECASE; REPO }
+}

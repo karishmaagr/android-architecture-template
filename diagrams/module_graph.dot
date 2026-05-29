@@ -1,0 +1,101 @@
+digraph ModuleGraph {
+    rankdir=TB
+    bgcolor=white
+    pad=0.4
+    nodesep=0.5
+    ranksep=0.6
+
+    node [shape=box, style="filled,rounded", fontname="Helvetica Neue,Helvetica,Arial", fontsize=11, margin="0.18,0.1", penwidth=0]
+    edge [color="#aaaaaa", arrowsize=0.55, penwidth=0.9]
+
+    // ── App ───────────────────────────────────────────────
+    app [label="app", fillcolor="#c0392b", fontcolor=white, fontsize=13, margin="0.22,0.14"]
+
+    // ── Services ──────────────────────────────────────────
+    sync [label="services:sync", fillcolor="#f39c12", fontcolor=white]
+
+    // ── Feature UI (purple) ───────────────────────────────
+    auth_ui  [label="feature:auth:ui",     fillcolor="#8e44ad", fontcolor=white]
+    home_ui  [label="feature:home:ui",     fillcolor="#8e44ad", fontcolor=white]
+    prof_ui  [label="feature:profile:ui",  fillcolor="#8e44ad", fontcolor=white]
+    set_ui   [label="feature:settings:ui", fillcolor="#8e44ad", fontcolor=white]
+
+    // ── Feature Data (orange) ─────────────────────────────
+    auth_data [label="feature:auth:data",     fillcolor="#e67e22", fontcolor=white]
+    home_data [label="feature:home:data",     fillcolor="#e67e22", fontcolor=white]
+    prof_data [label="feature:profile:data",  fillcolor="#e67e22", fontcolor=white]
+    set_data  [label="feature:settings:data", fillcolor="#e67e22", fontcolor=white]
+
+    // ── Feature Domain (green) ────────────────────────────
+    auth_dom [label="feature:auth:domain",     fillcolor="#27ae60", fontcolor=white]
+    home_dom [label="feature:home:domain",     fillcolor="#27ae60", fontcolor=white]
+    prof_dom [label="feature:profile:domain",  fillcolor="#27ae60", fontcolor=white]
+    set_dom  [label="feature:settings:domain", fillcolor="#27ae60", fontcolor=white]
+
+    // ── Core (blue) ───────────────────────────────────────
+    core_common   [label="core:common",   fillcolor="#2980b9", fontcolor=white]
+    core_domain   [label="core:domain",   fillcolor="#2980b9", fontcolor=white]
+    core_data     [label="core:data",     fillcolor="#2980b9", fontcolor=white]
+    core_network  [label="core:network",  fillcolor="#2980b9", fontcolor=white]
+    core_database [label="core:database", fillcolor="#2980b9", fontcolor=white]
+    core_ui       [label="core:ui",       fillcolor="#2980b9", fontcolor=white]
+
+    // ── Rank grouping ─────────────────────────────────────
+    { rank=source; app }
+    { rank=same;   sync; auth_ui; home_ui; prof_ui; set_ui }
+    { rank=same;   auth_data; home_data; prof_data; set_data }
+    { rank=same;   auth_dom; home_dom; prof_dom; set_dom }
+    { rank=sink;   core_common; core_domain; core_data; core_network; core_database; core_ui }
+
+    // ── App → features ────────────────────────────────────
+    app -> auth_ui [color="#c0392b"]
+    app -> home_ui [color="#c0392b"]
+    app -> prof_ui [color="#c0392b"]
+    app -> set_ui  [color="#c0392b"]
+    app -> auth_data [color="#c0392b"]
+    app -> home_data [color="#c0392b"]
+    app -> prof_data [color="#c0392b"]
+    app -> set_data  [color="#c0392b"]
+    app -> sync    [color="#c0392b"]
+
+    // ── ui → domain ───────────────────────────────────────
+    auth_ui -> auth_dom
+    home_ui -> home_dom
+    prof_ui -> prof_dom
+    set_ui  -> set_dom
+
+    // ── data → domain ─────────────────────────────────────
+    auth_data -> auth_dom
+    home_data -> home_dom
+    prof_data -> prof_dom
+    set_data  -> set_dom
+
+    // ── ui → core:ui ──────────────────────────────────────
+    auth_ui -> core_ui
+    home_ui -> core_ui
+    prof_ui -> core_ui
+    set_ui  -> core_ui
+
+    // ── domain → core ─────────────────────────────────────
+    auth_dom -> core_common; auth_dom -> core_domain
+    home_dom -> core_common; home_dom -> core_domain
+    prof_dom -> core_common; prof_dom -> core_domain
+    set_dom  -> core_common; set_dom  -> core_domain
+
+    // ── data → core infra ─────────────────────────────────
+    auth_data -> core_data; auth_data -> core_network
+    home_data -> core_data; home_data -> core_network; home_data -> core_database
+    prof_data -> core_data; prof_data -> core_network
+    set_data  -> core_data
+
+    // ── sync → core ───────────────────────────────────────
+    sync -> core_common; sync -> core_data
+    sync -> core_domain; sync -> core_network
+
+    // ── core internal ─────────────────────────────────────
+    core_domain   -> core_common
+    core_data     -> core_common
+    core_network  -> core_common
+    core_database -> core_common
+    core_ui       -> core_common
+}
