@@ -45,8 +45,6 @@ app/
 
 ## Module Dependency Graph
 
-![Module Dependency Graph](diagrams/module_graph.svg)
-
 **Colour key:** 🔴 app &nbsp;|&nbsp; 🟣 feature:ui &nbsp;|&nbsp; 🟠 feature:data &nbsp;|&nbsp; 🟢 feature:domain &nbsp;|&nbsp; 🔵 core &nbsp;|&nbsp; 🟡 services
 
 ---
@@ -104,8 +102,6 @@ app ──► feature:home:ui   (screens, ViewModels)
 
 ## Clean Architecture Layers
 
-![Clean Architecture Layers](diagrams/clean_architecture.svg)
-
 | Layer | Module | Allowed dependencies |
 |-------|--------|----------------------|
 | Presentation | `feature:X:ui` | Domain layer + `core:ui` |
@@ -118,8 +114,6 @@ The **Dependency Inversion Principle** is the key mechanism: `RepositoryImpl` (d
 ---
 
 ## MVI Pattern
-
-![MVI Pattern](diagrams/mvi_pattern.svg)
 
 | Concept | Type | Description |
 |---------|------|-------------|
