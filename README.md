@@ -121,11 +121,11 @@ The **Dependency Inversion Principle** is the key mechanism: `RepositoryImpl` (d
 
 ![MVI Pattern](diagrams/mvi_pattern.svg)
 
-**State** is always present — the screen never has a null state to guard against.  
-**Effect** is fire-and-forget — navigation and snackbars fire exactly once and are never stored.  
-**Intent** is the only entry point into the ViewModel — the UI cannot mutate state directly.
-
----
+| Concept | Type | Description |
+|---------|------|-------------|
+| **State** | `StateFlow` | Always present — the screen never guards against null |
+| **Intent** | sealed interface | The only entry point into the ViewModel |
+| **Effect** | `Channel` | Fire-and-forget — navigation and snackbars fire exactly once |
 
 Every feature follows the same three-part contract:
 
