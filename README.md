@@ -197,6 +197,58 @@ app ──► feature:home:ui   (screens, ViewModels)
 
 ## MVI Pattern
 
+```mermaid
+flowchart TD
+    subgraph screen["🖥️  Composable Screen"]
+        UI["Render State\n─────────────\ncollectAsState()"]
+        ACTION["User Action\n─────────────\nbutton click, scroll, input"]
+    end
+
+    subgraph vm["⚙️  MviViewModel"]
+        HANDLE["handleIntent(intent)"]
+        SET["setState { copy(…) }\n─────────────\nimmutable update"]
+        EFFECT["sendEffect(effect)\n─────────────\none-shot event"]
+    end
+
+    subgraph domain["📦  Domain Layer"]
+        UC["UseCase\n─────────────\nbusiness logic"]
+        REPO["Repository Interface\n─────────────\nno implementation detail"]
+    end
+
+    subgraph out["📤  Outputs"]
+        STATE["UiState\n─────────────\nStateFlow — always a value\nsurvives recomposition"]
+        FX["UiEffect\n─────────────\nChannel — consumed once\nnavigation · snackbar · dialog"]
+    end
+
+    ACTION -->|"onIntent(Intent)"| HANDLE
+    HANDLE -->|"suspend call"| UC
+    UC -->|"via interface"| REPO
+    UC -->|"Result&lt;T&gt;"| HANDLE
+    HANDLE -->|"success / loading"| SET
+    HANDLE -->|"navigate / notify"| EFFECT
+    SET --> STATE
+    EFFECT --> FX
+    STATE -->|"recompose"| UI
+    FX -->|"LaunchedEffect"| UI
+    UI --> ACTION
+
+    classDef screenStyle fill:#8e44ad,color:#fff,stroke:none
+    classDef vmStyle     fill:#c0392b,color:#fff,stroke:none
+    classDef domStyle    fill:#27ae60,color:#fff,stroke:none
+    classDef outStyle    fill:#2980b9,color:#fff,stroke:none
+
+    class UI,ACTION screenStyle
+    class HANDLE,SET,EFFECT vmStyle
+    class UC,REPO domStyle
+    class STATE,FX outStyle
+```
+
+**State** is always present — the screen never has a null state to guard against.  
+**Effect** is fire-and-forget — navigation and snackbars fire exactly once and are never stored.  
+**Intent** is the only entry point into the ViewModel — the UI cannot mutate state directly.
+
+---
+
 Every feature follows the same three-part contract:
 
 ```kotlin
