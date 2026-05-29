@@ -195,6 +195,80 @@ app ──► feature:home:ui   (screens, ViewModels)
 
 ---
 
+## Clean Architecture Layers
+
+```mermaid
+flowchart TB
+    subgraph ui_layer["🟣  Presentation Layer  ·  feature:X:ui"]
+        SCREEN["Composable Screen"]
+        VM["ViewModel\nextends MviViewModel"]
+        CONTRACT["State  ·  Intent  ·  Effect"]
+        SCREEN <-->|"collectAsState\nonIntent()"| VM
+        VM --- CONTRACT
+    end
+
+    subgraph domain_layer["🟢  Domain Layer  ·  feature:X:domain  ·  pure Kotlin — zero framework deps"]
+        USECASE["UseCase\nbusiness logic lives here"]
+        REPO_IF["Repository\ninterface — no impl detail"]
+        MODEL["Domain Model\ndata class"]
+        USECASE -->|"calls"| REPO_IF
+        USECASE -->|"returns"| MODEL
+    end
+
+    subgraph data_layer["🟠  Data Layer  ·  feature:X:data"]
+        REPO_IMPL["RepositoryImpl"]
+        REMOTE["Remote DataSource\nRetrofit / API"]
+        LOCAL["Local DataSource\nRoom / DataStore"]
+        DTO["DTO  ·  Entity"]
+        MAPPER["Mapper\ntoDomain()"]
+        REPO_IMPL --> REMOTE & LOCAL
+        REMOTE & LOCAL --> DTO
+        DTO --> MAPPER
+    end
+
+    subgraph core_layer["🔵  Core Layer  ·  shared infrastructure"]
+        CORE["core:network  ·  core:database\ncore:data  ·  core:domain  ·  core:ui"]
+    end
+
+    %% vertical data flow
+    VM -->|"invokes"| USECASE
+    MODEL -->|"drives recomposition"| SCREEN
+    MAPPER -->|"produces"| MODEL
+
+    %% dependency inversion — interface in domain, impl in data
+    REPO_IMPL -. "implements\n(Dependency Inversion)" .-> REPO_IF
+
+    %% data layer uses core infra
+    REMOTE -->|"uses"| CORE
+    LOCAL  -->|"uses"| CORE
+
+    %% dependency direction rule label
+    DIRECTION(["⬆️  Dependencies point inward\nDomain knows nothing about Data or UI"])
+
+    classDef uiStyle     fill:#8e44ad,color:#fff,stroke:none
+    classDef domStyle    fill:#27ae60,color:#fff,stroke:none
+    classDef dataStyle   fill:#e67e22,color:#fff,stroke:none
+    classDef coreStyle   fill:#2980b9,color:#fff,stroke:none
+    classDef ruleStyle   fill:#ecf0f1,color:#333,stroke:#bdc3c7
+
+    class SCREEN,VM,CONTRACT uiStyle
+    class USECASE,REPO_IF,MODEL domStyle
+    class REPO_IMPL,REMOTE,LOCAL,DTO,MAPPER dataStyle
+    class CORE coreStyle
+    class DIRECTION ruleStyle
+```
+
+| Layer | Module | Allowed dependencies |
+|-------|--------|----------------------|
+| Presentation | `feature:X:ui` | Domain layer + `core:ui` |
+| Domain | `feature:X:domain` | `core:common`, `core:domain` only |
+| Data | `feature:X:data` | Domain layer + `core:data/network/database` |
+| Core | `core:*` | `core:common` (no feature knowledge) |
+
+The **Dependency Inversion Principle** is the key mechanism: `RepositoryImpl` (data) implements `Repository` (domain). The domain layer defines the contract; the data layer fulfils it. The domain never imports anything from data.
+
+---
+
 ## MVI Pattern
 
 ```mermaid
