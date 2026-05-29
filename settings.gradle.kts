@@ -27,11 +27,22 @@ include(":core:network")
 include(":core:database")
 include(":core:ui")
 
-// Feature modules
-include(":feature:auth")
-include(":feature:home")
-include(":feature:profile")
-include(":feature:settings")
+// Feature modules — each split into domain / data / ui
+include(":feature:auth:domain")
+include(":feature:auth:data")
+include(":feature:auth:ui")
+
+include(":feature:home:domain")
+include(":feature:home:data")
+include(":feature:home:ui")
+
+include(":feature:profile:domain")
+include(":feature:profile:data")
+include(":feature:profile:ui")
+
+include(":feature:settings:domain")
+include(":feature:settings:data")
+include(":feature:settings:ui")
 
 // Services
 include(":services:sync")

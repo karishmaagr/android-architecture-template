@@ -1,33 +1,124 @@
 # Android Architecture Template
 
-A production-ready Android project template built with **MVI + Clean Architecture + Multi-Module** design. Use this as a starting point for new Android projects — the patterns, wiring, and module graph are already in place.
+A production-ready Android project template built with **MVI + Clean Architecture + Fine-Grained Multi-Module** design. Every feature is split into three independent Gradle modules (`domain`, `data`, `ui`), enforcing strict layer boundaries at the build level — not just by convention.
 
-## Architecture
+---
+
+## Module Structure
 
 ```
 app/
 ├── core/
-│   ├── common/        # Result wrapper, coroutine dispatchers, extensions
+│   ├── common/        # Result<T>, coroutine dispatchers, extensions
 │   ├── data/          # BaseRepository, AppPreferences, LogoutService, Syncable
 │   ├── database/      # Room database, DAOs, entities
-│   ├── domain/        # UseCase, FlowUseCase, NoParamUseCase base classes
-│   ├── network/       # Retrofit, OkHttp interceptors, ApiResponse model
-│   └── ui/            # MviViewModel base, shared Compose components, theme
+│   ├── domain/        # UseCase / FlowUseCase / NoParamUseCase base classes
+│   ├── network/       # Retrofit, OkHttp interceptors, ApiResponse
+│   └── ui/            # MviViewModel base, Compose components, theme
+│
 ├── feature/
-│   ├── auth/          # Login, Register (MVI screens + data + domain)
-│   ├── home/          # Posts list (offline-first, Room + Retrofit)
-│   ├── profile/       # User profile view and edit
-│   └── settings/      # Theme, notifications, logout
+│   ├── auth/
+│   │   ├── domain/    # Models (User, AuthCredentials), AuthRepository interface, use cases
+│   │   ├── data/      # AuthRepositoryImpl, AuthApi, data sources, AuthDataModule
+│   │   └── ui/        # LoginScreen, RegisterScreen, ViewModels, Contracts
+│   │
+│   ├── home/
+│   │   ├── domain/    # Post model, HomeRepository interface, GetPostsUseCase, RefreshPostsUseCase
+│   │   ├── data/      # HomeRepositoryImpl, HomeApi, PostMapper, HomeDataModule
+│   │   └── ui/        # HomeScreen, HomeViewModel, HomeContract, PostItem
+│   │
+│   ├── profile/
+│   │   ├── domain/    # Profile model, ProfileRepository interface, use cases
+│   │   ├── data/      # ProfileRepositoryImpl, ProfileApi, ProfileDataModule
+│   │   └── ui/        # ProfileScreen, ProfileViewModel, ProfileContract
+│   │
+│   └── settings/
+│       ├── domain/    # AppSettings model, ThemeMode, SettingsRepository interface
+│       ├── data/      # SettingsRepositoryImpl, SettingsDataModule
+│       └── ui/        # SettingsScreen, SettingsViewModel, SettingsContract
+│
 └── services/
-    └── sync/          # WorkManager background sync
+    └── sync/          # WorkManager background sync (depends on core:data:Syncable only)
 ```
 
-### Layer rules
+---
 
-- `feature` modules depend on `core` modules only — never on each other
-- `domain` layer has no dependency on `data`, `network`, or `ui`
-- `services` modules depend on `core` abstractions (`Syncable`) — not on feature repositories
-- Cross-cutting concerns (logout, sync) are exposed as interfaces in `core:data` and implemented in the feature that owns them
+## Dependency Rules (enforced at build level)
+
+```
+feature:X:domain  ←  core:common, core:domain
+feature:X:data    ←  feature:X:domain, core:common, core:data, core:network
+feature:X:ui      ←  feature:X:domain, core:common, core:ui          ← NO data dependency
+app               ←  feature:X:ui + feature:X:data  (the only place they meet)
+```
+
+The `ui` module **cannot** import from `data` — the Gradle dependency graph makes this a **compile error**, not a lint warning.
+
+---
+
+## Why Fine-Grained Feature Modules?
+
+### 1. Strict layer isolation — enforced by the build system
+In a single-module feature, nothing stops a ViewModel from accidentally importing a DAO or a Retrofit service. With three separate modules, the compiler enforces the rule: `ui` has no path to `data` in its dependency graph. Violations fail the build.
+
+### 2. Selective dependency — consume only what you need
+Another module or app that wants to reuse business logic can depend on `:feature:home:domain` alone — it gets the use cases and interfaces without pulling in Room, Retrofit, Moshi, or any implementation detail. Gradle only compiles what is actually needed.
+
+### 3. Faster incremental builds
+Gradle's incremental build only recompiles modules whose inputs changed. Changing a screen layout touches only `:feature:home:ui` — domain and data are untouched and their cached outputs are reused. In a monolithic feature module every UI change would trigger a full recompile of data and domain too.
+
+### 4. Smaller binary footprint per consumer
+An SDK or library consumer that embeds only the domain layer avoids the transitive weight of Retrofit, Room, and Moshi. Each layer adds its own dependencies only where they are actually needed.
+
+### 5. Parallel compilation
+Gradle compiles independent modules in parallel. `domain`, `data`, and `ui` of different features have no cross-feature dependencies, so the entire feature graph can be compiled concurrently.
+
+### 6. Clearer ownership and testability
+Unit tests for use cases live in `domain` with zero Android framework dependencies — just pure Kotlin. Integration tests for the repository live in `data`. UI tests live in `ui`. Each test suite has a minimal compile scope and runs faster.
+
+### 7. Future-proof reuse
+If `feature:home` later needs to be published as a standalone SDK, the split is already done. Consumers can take `:feature:home:domain` (interface contract), `:feature:home:data` (network + cache implementation), or both — independently versioned if needed.
+
+---
+
+## How the App Wires It Together
+
+`app` is the only module that depends on **both** `ui` and `data` for each feature. This is intentional: it is the composition root where Hilt's dependency graph is assembled.
+
+```
+app ──► feature:home:ui   (screens, ViewModels)
+    └──► feature:home:data  (Hilt bindings: HomeRepositoryImpl → HomeRepository)
+```
+
+`feature:home:ui` injects `HomeRepository` (the interface from `domain`). `feature:home:data`'s `HomeDataModule` provides the concrete binding. Neither module knows about the other — `app` is the glue.
+
+---
+
+## MVI Pattern
+
+Every feature follows the same three-part contract:
+
+```kotlin
+data class HomeState(
+    val posts: List<Post> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null,
+) : UiState
+
+sealed interface HomeIntent : UiIntent {
+    data object LoadPosts    : HomeIntent
+    data object RefreshPosts : HomeIntent
+}
+
+sealed interface HomeEffect : UiEffect {
+    data object NavigateToProfile                    : HomeEffect
+    data class ShowSnackbar(val message: String)     : HomeEffect
+}
+```
+
+ViewModels extend `MviViewModel<State, Intent, Effect>` and only mutate state via `setState { }`.
+
+---
 
 ## Tech Stack
 
@@ -44,32 +135,7 @@ app/
 | Background work | WorkManager |
 | Testing | JUnit4, MockK, Turbine, Truth, Robolectric |
 
-## MVI Pattern
-
-Every feature follows the same three-part contract:
-
-```kotlin
-// State — what the screen renders
-data class HomeState(
-    val posts: List<Post> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null,
-) : UiState
-
-// Intent — what the user can do
-sealed interface HomeIntent : UiIntent {
-    data object LoadPosts : HomeIntent
-    data object RefreshPosts : HomeIntent
-}
-
-// Effect — one-shot events (navigation, snackbars)
-sealed interface HomeEffect : UiEffect {
-    data object NavigateToProfile : HomeEffect
-    data class ShowSnackbar(val message: String) : HomeEffect
-}
-```
-
-ViewModels extend `MviViewModel<State, Intent, Effect>` and only mutate state via `setState { }`.
+---
 
 ## Use Case Base Classes
 
@@ -79,30 +145,17 @@ ViewModels extend `MviViewModel<State, Intent, Effect>` and only mutate state vi
 | `NoParamUseCase<R>` | Single suspend call with no parameter |
 | `FlowUseCase<P, R>` | Ongoing stream; emits `Flow<Result<R>>` |
 
+---
+
 ## Getting Started
 
 1. Clone the repo
 2. Open in Android Studio Hedgehog or newer
-3. Replace `com.example.arch` with your package name in all files and `build.gradle.kts`
+3. Replace `com.example.arch` with your package name across all files and `build.gradle.kts` namespaces
 4. Update `AppConstants` with your API base URL
 5. Run on device or emulator
 
-## Module Dependency Graph
-
-```
-app
- ├── core:common
- ├── core:data ──── core:common
- ├── core:database ─ core:common
- ├── core:domain ─── core:common
- ├── core:network ── core:common
- ├── core:ui ─────── core:common
- ├── feature:auth ── core:{common,data,domain,network,ui}
- ├── feature:home ── core:{common,data,database,domain,network,ui}
- ├── feature:profile── core:{common,data,domain,network,ui}
- ├── feature:settings─ core:{common,data,domain,ui}
- └── services:sync ─ core:{common,data,domain,network}
-```
+---
 
 ## License
 

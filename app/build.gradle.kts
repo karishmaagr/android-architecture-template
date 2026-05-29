@@ -59,11 +59,17 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:domain"))
 
-    // Feature modules
-    implementation(project(":feature:auth"))
-    implementation(project(":feature:home"))
-    implementation(project(":feature:profile"))
-    implementation(project(":feature:settings"))
+    // Feature UI modules (pull their domain transitively)
+    implementation(project(":feature:auth:ui"))
+    implementation(project(":feature:home:ui"))
+    implementation(project(":feature:profile:ui"))
+    implementation(project(":feature:settings:ui"))
+
+    // Feature data modules — supply Hilt bindings; app is the only place ui+data are wired together
+    implementation(project(":feature:auth:data"))
+    implementation(project(":feature:home:data"))
+    implementation(project(":feature:profile:data"))
+    implementation(project(":feature:settings:data"))
 
     // Services
     implementation(project(":services:sync"))
