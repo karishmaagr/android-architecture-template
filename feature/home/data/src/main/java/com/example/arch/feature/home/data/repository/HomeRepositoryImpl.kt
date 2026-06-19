@@ -2,6 +2,7 @@ package com.example.arch.feature.home.data.repository
 
 import com.example.arch.core.common.result.Result
 import com.example.arch.core.data.repository.BaseRepository
+import com.example.arch.core.data.repository.NetworkResult
 import com.example.arch.core.database.dao.PostDao
 import com.example.arch.feature.home.data.mapper.PostEntityMapper.toDomain
 import com.example.arch.feature.home.data.mapper.toEntity
@@ -25,13 +26,14 @@ class HomeRepositoryImpl @Inject constructor(
 
     override suspend fun refreshPosts(): Result<Unit> =
         when (val result = safeApiCall { api.getPosts() }) {
-            is Result.Success -> {
+            is NetworkResult.Success -> {
                 val entities = result.data.map { it.toEntity() }
                 postDao.deleteAll()
                 postDao.insertAll(entities)
                 Result.Success(Unit)
             }
-            is Result.Error   -> result
-            is Result.Loading -> result
+            // 204: server confirmed data is unchanged — skip cache update, serve existing DB rows
+            is NetworkResult.NotModified -> Result.Success(Unit)
+            is NetworkResult.Failure -> Result.Error(result.exception, result.exception.message)
         }
 }

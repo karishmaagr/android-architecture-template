@@ -1,7 +1,5 @@
 package com.example.arch.core.common.extensions
 
-fun String?.isNotNullOrBlank(): Boolean = !isNullOrBlank()
-
 fun String.toTitleCase(): String =
     split(" ").joinToString(" ") { word ->
         word.replaceFirstChar { it.uppercaseChar() }

@@ -6,6 +6,7 @@ import com.example.arch.core.data.local.preferences.AppPreferences
 import com.example.arch.core.data.local.preferences.AppPreferencesImpl
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -17,6 +18,8 @@ abstract class DataModule {
     @Binds @Singleton
     abstract fun bindAppPreferences(impl: AppPreferencesImpl): AppPreferences
 
-    @Binds @Singleton
-    abstract fun bindDispatcherProvider(impl: DefaultDispatcherProvider): DispatcherProvider
+    companion object {
+        @Provides @Singleton
+        fun provideDispatcherProvider(): DispatcherProvider = DefaultDispatcherProvider()
+    }
 }

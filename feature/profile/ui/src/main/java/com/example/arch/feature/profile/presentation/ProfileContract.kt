@@ -27,5 +27,6 @@ sealed interface ProfileIntent : UiIntent {
 
 sealed interface ProfileEffect : UiEffect {
     data object NavigateBack                     : ProfileEffect
+    data object SessionExpired                   : ProfileEffect
     data class ShowSnackbar(val message: String) : ProfileEffect
 }

@@ -15,7 +15,7 @@ dataStore               = "1.1.1"
 room                    = "2.6.1"
 
 # Compose
-composeBom              = "2024.08.00"
+composeBom              = "2024.10.01"
 
 # Networking
 retrofit                = "2.11.0"

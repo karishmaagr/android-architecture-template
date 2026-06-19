@@ -16,6 +16,6 @@ class UpdateProfileUseCase @Inject constructor(
         when (val r = repository.updateProfile(params)) {
             is Result.Success -> r.data
             is Result.Error   -> throw r.exception
-            is Result.Loading -> error("Unexpected")
+            is Result.Loading -> error("Unexpected loading state")
         }
 }
