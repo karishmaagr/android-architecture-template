@@ -2,20 +2,28 @@ package com.example.arch.feature.profile.presentation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,6 +47,7 @@ import com.example.arch.core.ui.component.LoadingView
 @Composable
 fun ProfileScreen(
     onNavigateBack: () -> Unit,
+    onSessionExpired: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -47,8 +56,9 @@ fun ProfileScreen(
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                is ProfileEffect.NavigateBack    -> onNavigateBack()
-                is ProfileEffect.ShowSnackbar    -> snackbarHostState.showSnackbar(effect.message)
+                is ProfileEffect.NavigateBack   -> onNavigateBack()
+                is ProfileEffect.SessionExpired -> onSessionExpired()
+                is ProfileEffect.ShowSnackbar   -> snackbarHostState.showSnackbar(effect.message)
             }
         }
     }
@@ -74,11 +84,15 @@ fun ProfileScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         when {
-            state.isLoading        -> LoadingView(Modifier.padding(padding))
-            state.error != null    -> ErrorView(message = state.error!!, modifier = Modifier.padding(padding))
-            state.profile != null  -> ProfileContent(
-                state   = state,
-                intent  = { viewModel.onIntent(it) },
+            state.isLoading   -> LoadingView(Modifier.padding(padding))
+            state.error != null -> ErrorView(message = state.error!!, modifier = Modifier.padding(padding))
+            state.isEditing   -> ProfileEditContent(
+                state    = state,
+                intent   = { viewModel.onIntent(it) },
+                modifier = Modifier.padding(padding),
+            )
+            state.profile != null -> ProfileContent(
+                state    = state,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -88,12 +102,13 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     state: ProfileState,
-    intent: (ProfileIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val profile = state.profile!!
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top,
     ) {
@@ -105,8 +120,75 @@ private fun ProfileContent(
         Spacer(Modifier.height(16.dp))
         Text(text = profile.name, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(4.dp))
-        Text(text = profile.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = profile.email,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.height(12.dp))
         Text(text = profile.bio, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@Composable
+private fun ProfileEditContent(
+    state: ProfileState,
+    intent: (ProfileIntent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(text = "Edit Profile", style = MaterialTheme.typography.titleLarge)
+
+        OutlinedTextField(
+            value = state.editName,
+            onValueChange = { intent(ProfileIntent.NameChanged(it)) },
+            label = { Text("Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+
+        OutlinedTextField(
+            value = state.editBio,
+            onValueChange = { intent(ProfileIntent.BioChanged(it)) },
+            label = { Text("Bio") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+            maxLines = 5,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = { intent(ProfileIntent.CancelEdit) },
+                modifier = Modifier.weight(1f),
+                enabled = !state.isSaving,
+            ) {
+                Text("Cancel")
+            }
+
+            Button(
+                onClick = { intent(ProfileIntent.SaveProfile) },
+                modifier = Modifier.weight(1f),
+                enabled = !state.isSaving,
+            ) {
+                if (state.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text("Save")
+                }
+            }
+        }
     }
 }

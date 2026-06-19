@@ -25,8 +25,7 @@ fun AppNavGraph(
         navigation(
             startDestination = NavRoutes.Login.route,
             route = NavRoutes.AuthGraph.route,
-        ) {
-            composable(NavRoutes.Login.route) {
+        ) {  composable(NavRoutes.Login.route) {
                 LoginScreen(
                     onLoginSuccess = {
                         navController.navigate(NavRoutes.MainGraph.route) {
@@ -54,14 +53,25 @@ fun AppNavGraph(
             route = NavRoutes.MainGraph.route,
         ) {
             composable(NavRoutes.Home.route) {
-
                 HomeScreen(
-                    onNavigateToProfile = { navController.navigate(NavRoutes.Profile.route) },
+                    onNavigateToProfile  = { navController.navigate(NavRoutes.Profile.route) },
                     onNavigateToSettings = { navController.navigate(NavRoutes.Settings.route) },
+                    onSessionExpired     = {
+                        navController.navigate(NavRoutes.AuthGraph.route) {
+                            popUpTo(NavRoutes.MainGraph.route) { inclusive = true }
+                        }
+                    },
                 )
             }
             composable(NavRoutes.Profile.route) {
-                ProfileScreen(onNavigateBack = { navController.popBackStack() })
+                ProfileScreen(
+                    onNavigateBack   = { navController.popBackStack() },
+                    onSessionExpired = {
+                        navController.navigate(NavRoutes.AuthGraph.route) {
+                            popUpTo(NavRoutes.MainGraph.route) { inclusive = true }
+                        }
+                    },
+                )
             }
             composable(NavRoutes.Settings.route) {
                 SettingsScreen(

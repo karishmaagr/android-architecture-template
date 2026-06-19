@@ -9,8 +9,8 @@ A production-ready Android project template built with **MVI + Clean Architectur
 ```
 app/
 ├── core/
-│   ├── common/        # Result<T>, coroutine dispatchers, extensions
-│   ├── data/          # BaseRepository, AppPreferences, LogoutService, Syncable
+│   ├── common/        # Result<T>, ApiException, coroutine dispatchers, extensions
+│   ├── data/          # BaseRepository, NetworkResult<T>, AppPreferences, LogoutService, Syncable
 │   ├── database/      # Room database, DAOs, entities
 │   ├── domain/        # UseCase / FlowUseCase / NoParamUseCase base classes
 │   ├── network/       # Retrofit, OkHttp interceptors, ApiResponse
@@ -30,7 +30,7 @@ app/
 │   ├── profile/
 │   │   ├── domain/    # Profile model, ProfileRepository interface, use cases
 │   │   ├── data/      # ProfileRepositoryImpl, ProfileApi, ProfileDataModule
-│   │   └── ui/        # ProfileScreen, ProfileViewModel, ProfileContract
+│   │   └── ui/        # ProfileScreen (view + edit mode), ProfileViewModel, ProfileContract
 │   │
 │   └── settings/
 │       ├── domain/    # AppSettings model, ThemeMode, SettingsRepository interface
@@ -59,6 +59,8 @@ app               ←  feature:X:ui + feature:X:data  (the only place they meet)
 ```
 
 The `ui` module **cannot** import from `data` — the Gradle dependency graph makes this a **compile error**, not a lint warning.
+
+> **Note on `ApiException`:** Although exceptions originate in the network layer, `ApiException` lives in `core:common` so that ViewModels in `feature:X:ui` can match on specific subtypes (e.g. `Unauthorized`, `NetworkError`) without violating the no-data-in-ui rule.
 
 ---
 
@@ -104,7 +106,7 @@ app ──► feature:home:ui   (screens, ViewModels)
 
 | Layer | Module | Allowed dependencies |
 |-------|--------|----------------------|
-| Presentation | `feature:X:ui` | Domain layer + `core:ui` |
+| Presentation | `feature:X:ui` | Domain layer + `core:ui` + `core:common` |
 | Domain | `feature:X:domain` | `core:common`, `core:domain` only |
 | Data | `feature:X:data` | Domain layer + `core:data/network/database` |
 | Core | `core:*` | `core:common` (no feature knowledge) |
@@ -125,9 +127,10 @@ Every feature follows the same three-part contract:
 
 ```kotlin
 data class HomeState(
-    val posts: List<Post> = emptyList(),
+    val posts: List<Post>  = emptyList(),
     val isLoading: Boolean = false,
-    val error: String? = null,
+    val isOffline: Boolean = false,
+    val error: String?     = null,
 ) : UiState
 
 sealed interface HomeIntent : UiIntent {
@@ -136,12 +139,70 @@ sealed interface HomeIntent : UiIntent {
 }
 
 sealed interface HomeEffect : UiEffect {
-    data object NavigateToProfile                    : HomeEffect
-    data class ShowSnackbar(val message: String)     : HomeEffect
+    data object NavigateToProfile              : HomeEffect
+    data object SessionExpired                 : HomeEffect
+    data class ShowSnackbar(val message: String) : HomeEffect
 }
 ```
 
 ViewModels extend `MviViewModel<State, Intent, Effect>` and only mutate state via `setState { }`.
+
+---
+
+## API Error Handling
+
+All HTTP errors flow through a consistent three-layer pipeline:
+
+```
+BaseRepository.safeApiCall()
+        │
+        ▼  produces
+NetworkResult<T>                          [core:data — data layer only]
+  ├── Success(data)      — 2xx with body
+  ├── NotModified        — 204 No Content (cache is still fresh)
+  └── Failure(ApiException)
+        │
+        ▼  converted by toResult() / toUnitResult()
+Result<T>                                 [core:common — all layers]
+  ├── Success(data)
+  └── Error(ApiException, message)
+        │
+        ▼  matched in ViewModel
+when (result.exception) {
+    is ApiException.Unauthorized   → SessionExpired effect → navigate to login
+    is ApiException.ValidationError → surface fieldErrors per field in state
+    is ApiException.NetworkError   → isOffline = true, show offline banner
+    is ApiException.TooManyRequests → rate-limit message in state
+    is ApiException.ServerError    → generic server-error message
+    else                           → fallback message
+}
+```
+
+### HTTP Status Code → `ApiException` mapping
+
+| HTTP | `ApiException` subclass | Typical ViewModel response |
+|------|------------------------|---------------------------|
+| 400 | `BadRequest` | General error message |
+| 401 | `Unauthorized` | `SessionExpired` effect → navigate to login |
+| 403 | `Forbidden` | General error message |
+| 404 | `NotFound` | "Not found" error message |
+| 409 | `Conflict` | Field-level error (e.g. "email already taken") |
+| 422 | `ValidationError` | Per-field errors from `fieldErrors` map |
+| 429 | `TooManyRequests` | Rate-limit snackbar / state message |
+| 5xx | `ServerError` | "Server error, try again" message |
+| IOException | `NetworkError` | Offline banner + cached data |
+
+### 204 No Content
+
+`204` is handled as `NetworkResult.NotModified`. Repositories decide what it means per endpoint:
+
+- **data refresh** (`HomeRepositoryImpl.refreshPosts`) — skip the cache clear-and-insert; the existing DB rows are served as-is via the live `Flow`
+- **profile update** (`ProfileRepositoryImpl.updateProfile`) — return the input profile unchanged (server confirmed nothing changed)
+- **logout** (`AuthRemoteDataSourceImpl.logout`) — treated as success (`toUnitResult()`)
+
+### `ApiException` lives in `core:common`
+
+`ApiException` is a pure-Kotlin sealed class with no network or Android dependencies. Placing it in `core:common` (not `core:network`) means `feature:X:ui` modules can import and `when`-match on it without violating the no-data-in-ui dependency rule.
 
 ---
 
@@ -169,6 +230,24 @@ ViewModels extend `MviViewModel<State, Intent, Effect>` and only mutate state vi
 | `UseCase<P, R>` | Single suspend call with a parameter |
 | `NoParamUseCase<R>` | Single suspend call with no parameter |
 | `FlowUseCase<P, R>` | Ongoing stream; emits `Flow<Result<R>>` |
+
+All three catch exceptions thrown by `execute()` and wrap them in `Result.Error(exception)`, preserving the typed `ApiException` for the ViewModel to match.
+
+---
+
+## Session Expiry
+
+When any screen receives `ApiException.Unauthorized`, the ViewModel emits a `SessionExpired` effect. `AppNavGraph` handles this by navigating to the auth graph and clearing the main graph from the back stack:
+
+```kotlin
+onSessionExpired = {
+    navController.navigate(NavRoutes.AuthGraph.route) {
+        popUpTo(NavRoutes.MainGraph.route) { inclusive = true }
+    }
+}
+```
+
+This pattern is wired in `HomeScreen` and `ProfileScreen`.
 
 ---
 
